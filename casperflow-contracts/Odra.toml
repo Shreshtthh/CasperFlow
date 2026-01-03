@@ -1,0 +1,11 @@
+# CasperFlow Contract Registry
+# Each contract listed here will be compiled to a separate WASM file
+
+[[contracts]]
+fqn = "casperflow_contracts::vault::AutomationVault"
+
+[[contracts]]
+fqn = "casperflow_contracts::automation_engine::AutomationEngine"
+
+[[contracts]]
+fqn = "casperflow_contracts::staking_adapter::StakingAdapter"
