@@ -166,8 +166,8 @@ Interface for native Casper staking operations.
 | **AutomationEngine** | `hash-29f65ce5c908fe1dd3b7f7245334abba93b535d727182e4ed4bda3bf9056483a` |
 
 View on Explorer:
-- [Vault Contract](https://testnet.cspr.live/contract/f8bcf5b8f9c3da7e0bf83303295018434fc7e5de69d4435f9930c8dc8a8c3888)
-- [Engine Contract](https://testnet.cspr.live/contract/29f65ce5c908fe1dd3b7f7245334abba93b535d727182e4ed4bda3bf9056483a)
+- [Vault Contract](https://testnet.cspr.live/contract-package/f8bcf5b8f9c3da7e0bf83303295018434fc7e5de69d4435f9930c8dc8a8c3888)
+- [Engine Contract](https://testnet.cspr.live/contract-package/29f65ce5c908fe1dd3b7f7245334abba93b535d727182e4ed4bda3bf9056483a)
 
 ---
 
