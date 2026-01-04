@@ -4,25 +4,14 @@ import Button from '../components/common/Button'
 import { TEMPLATES, SCHEDULES } from '../lib/constants'
 import './CreateAutomation.css'
 
-interface WalletState {
-  isAvailable: boolean
-  isConnected: boolean
-  isConnecting: boolean
-  publicKey: string | null
-  error: string | null
-  connect: () => Promise<boolean>
-  disconnect: () => Promise<void>
-}
-
 interface CreateAutomationProps {
   activeAccount: {
     public_key: string
     balance?: string
   } | null
-  wallet?: WalletState
 }
 
-function CreateAutomation({ activeAccount, wallet }: CreateAutomationProps) {
+function CreateAutomation({ activeAccount }: CreateAutomationProps) {
   const navigate = useNavigate()
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [formData, setFormData] = useState({

@@ -7,25 +7,13 @@ import RuleCard from '../components/automation/RuleCard'
 import Button from '../components/common/Button'
 import { useToast } from '../components/common/Toast'
 import { createDepositDeploy, createWithdrawDeploy, signAndSendDeploy } from '../lib/contractService'
-import { CSPR_TO_MOTES } from '../lib/constants'
 import './Dashboard.css'
-
-interface WalletState {
-    isAvailable: boolean
-    isConnected: boolean
-    isConnecting: boolean
-    publicKey: string | null
-    error: string | null
-    connect: () => Promise<boolean>
-    disconnect: () => Promise<void>
-}
 
 interface DashboardProps {
     activeAccount: {
         public_key: string
         balance?: string
     } | null
-    wallet?: WalletState
 }
 
 // Mock data for demo
@@ -48,7 +36,7 @@ const mockRules = [
     },
 ]
 
-function Dashboard({ activeAccount, wallet }: DashboardProps) {
+function Dashboard({ activeAccount }: DashboardProps) {
     const navigate = useNavigate()
     const { showToast } = useToast()
     const [vaultBalance, setVaultBalance] = useState('100') // Demo balance

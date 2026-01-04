@@ -1,11 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 
-interface CasperWalletState {
-    isLocked: boolean
-    isConnected: boolean
-    activeKey: string | null
-}
-
 interface UseCasperWalletReturn {
     isAvailable: boolean
     isConnected: boolean

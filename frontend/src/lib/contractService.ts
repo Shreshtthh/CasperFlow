@@ -1,14 +1,10 @@
 import {
     DeployUtil,
-    RuntimeArgs,
-    CLValueBuilder,
     CLPublicKey,
-    Contracts
 } from 'casper-js-sdk'
-import { CONTRACTS, CSPR_TO_MOTES } from './constants'
+import { CSPR_TO_MOTES } from './constants'
 
 const NETWORK_NAME = 'casper-test'
-const VAULT_CONTRACT_HASH = CONTRACTS.VAULT.replace('hash-', '')
 
 /**
  * Create a deploy for depositing CSPR into the vault

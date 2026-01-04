@@ -22,8 +22,8 @@ function App() {
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Landing activeAccount={activeAccount} wallet={wallet} />} />
-          <Route path="/dashboard" element={<Dashboard activeAccount={activeAccount} wallet={wallet} />} />
-          <Route path="/create" element={<CreateAutomation activeAccount={activeAccount} wallet={wallet} />} />
+          <Route path="/dashboard" element={<Dashboard activeAccount={activeAccount} />} />
+          <Route path="/create" element={<CreateAutomation activeAccount={activeAccount} />} />
           <Route path="/history" element={<History activeAccount={activeAccount} />} />
         </Routes>
       </main>
