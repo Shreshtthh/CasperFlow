@@ -1,0 +1,118 @@
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: var(--color-background-card);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    min-width: 320px;
+    max-width: 420px;
+    animation: toastSlideIn 0.3s ease;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.toast-success {
+    border-left: 4px solid var(--color-success);
+}
+
+.toast-error {
+    border-left: 4px solid var(--color-error);
+}
+
+.toast-warning {
+    border-left: 4px solid var(--color-warning);
+}
+
+.toast-info {
+    border-left: 4px solid var(--color-primary);
+}
+
+.toast-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-message {
+    margin: 0;
+    font-size: 14px;
+    color: var(--color-text-primary);
+    line-height: 1.4;
+}
+
+.toast-link {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.toast-link:hover {
+    text-decoration: underline;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.toast-close:hover {
+    color: var(--color-text-primary);
+}
+
+/* MAX button in input */
+.max-btn {
+    position: absolute;
+    right: 16px;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.max-btn:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+.max-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

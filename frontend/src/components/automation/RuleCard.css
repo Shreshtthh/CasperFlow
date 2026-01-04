@@ -1,0 +1,72 @@
+.rule-card {
+    background: var(--color-background-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-large);
+    padding: 24px;
+    transition: transform 0.2s ease;
+}
+
+.rule-card:hover {
+    transform: translateY(-2px);
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.template-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-active {
+    background: rgba(76, 175, 80, 0.2);
+    color: var(--color-success);
+}
+
+.status-paused {
+    background: rgba(255, 193, 7, 0.2);
+    color: var(--color-warning);
+}
+
+.rule-details {
+    margin-bottom: 20px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+}
+
+.detail-value {
+    font-size: 14px;
+    color: var(--color-text-primary);
+    font-family: var(--font-mono);
+}
+
+.rule-actions {
+    display: flex;
+    gap: 8px;
+}

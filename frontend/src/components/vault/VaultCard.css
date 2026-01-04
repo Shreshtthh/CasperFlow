@@ -1,0 +1,74 @@
+.vault-card {
+    background: var(--color-background-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-large);
+    padding: 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 32px;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .vault-card {
+        grid-template-columns: 1fr;
+    }
+}
+
+.balance-section {}
+
+.balance-label {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+.balance-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.balance-value span {
+    font-size: 18px;
+    color: var(--color-text-secondary);
+    margin-left: 8px;
+}
+
+.locked-section {
+    border-left: 1px solid var(--color-border);
+    padding-left: 32px;
+}
+
+@media (max-width: 768px) {
+    .locked-section {
+        border-left: none;
+        border-top: 1px solid var(--color-border);
+        padding-left: 0;
+        padding-top: 24px;
+    }
+}
+
+.locked-label {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+.locked-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-warning);
+}
+
+.locked-value span {
+    font-size: 14px;
+    color: var(--color-text-secondary);
+    margin-left: 4px;
+}
+
+.vault-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
