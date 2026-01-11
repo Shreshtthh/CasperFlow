@@ -1,7 +1,7 @@
 /**
  * Contract Service
  * 
- * Creates deploys for interacting with CasperFlow smart contracts.
+ * Creates deploys for interacting with CasperAutomations smart contracts.
  * These deploys are signed by the user's wallet and submitted to the network.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Type definitions for CasperFlow frontend
+ * Type definitions for CasperAutomations frontend
  */
 
 /**

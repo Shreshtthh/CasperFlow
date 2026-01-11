@@ -41,7 +41,7 @@ function Header({ activeAccount, wallet }: HeaderProps) {
     <header className="header">
       <div className="header-content">
         <Link to="/" className="logo">
-          🌊 Casper<span>Flow</span>
+          ⚡ Casper<span>Automations</span>
         </Link>
 
         {activeAccount && (

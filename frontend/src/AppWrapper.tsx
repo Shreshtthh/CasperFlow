@@ -5,7 +5,7 @@ import App from './App'
 
 // CSPR.click configuration
 const clickOptions = {
-    appName: 'CasperFlow',
+    appName: 'CasperAutomations',
     appId: 'csprclick-template',
     contentMode: 'iframe',
     providers: ['casper-wallet'],
