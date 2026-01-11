@@ -6,6 +6,7 @@ interface WalletState {
   isConnected: boolean
   isConnecting: boolean
   publicKey: string | null
+  balance: string | null
   error: string | null
   connect: () => Promise<boolean>
   disconnect: () => Promise<void>
@@ -69,6 +70,12 @@ function Header({ activeAccount, wallet }: HeaderProps) {
         <div className="account-info">
           <span className="badge">Testnet</span>
 
+          {wallet?.isConnected && wallet.balance && (
+            <span className="balance-display">
+              {wallet.balance} CSPR
+            </span>
+          )}
+
           {wallet && (
             <button
               className={`wallet-btn ${wallet.isConnected ? 'connected' : ''}`}
@@ -92,3 +99,4 @@ function Header({ activeAccount, wallet }: HeaderProps) {
 }
 
 export default Header
+

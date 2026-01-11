@@ -1,10 +1,23 @@
+/**
+ * Contract Service
+ * 
+ * Creates deploys for interacting with CasperFlow smart contracts.
+ * These deploys are signed by the user's wallet and submitted to the network.
+ */
+
 import {
     DeployUtil,
     CLPublicKey,
+    CLValueBuilder,
+    RuntimeArgs,
 } from 'casper-js-sdk'
-import { CSPR_TO_MOTES } from './constants'
+import { CONTRACTS, NETWORK, CSPR_TO_MOTES } from './constants'
 
-const NETWORK_NAME = 'casper-test'
+const NETWORK_NAME = NETWORK.NAME
+
+// Remove 'hash-' prefix for contract calls
+const VAULT_HASH = CONTRACTS.VAULT.replace('hash-', '')
+const ENGINE_HASH = CONTRACTS.ENGINE.replace('hash-', '')
 
 /**
  * Create a deploy for depositing CSPR into the vault
@@ -14,9 +27,8 @@ export function createDepositDeploy(
     amountInCSPR: string
 ): DeployUtil.Deploy {
     const publicKey = CLPublicKey.fromHex(senderPublicKey)
-    const amountInMotes = Math.floor(parseFloat(amountInCSPR) * CSPR_TO_MOTES)
+    const amountInMotes = BigInt(Math.floor(parseFloat(amountInCSPR) * CSPR_TO_MOTES))
 
-    // Create deploy parameters
     const deployParams = new DeployUtil.DeployParams(
         publicKey,
         NETWORK_NAME,
@@ -24,21 +36,21 @@ export function createDepositDeploy(
         1800000 // 30 min TTL
     )
 
-    // Create session - simple transfer for demo
-    const session = DeployUtil.ExecutableDeployItem.newTransfer(
-        amountInMotes,
-        publicKey, // Transfer to self for vault deposit simulation
-        null,
-        Date.now() // Use timestamp as transfer ID
+    // Call vault.deposit() - payable function
+    const args = RuntimeArgs.fromMap({})
+
+    // Use newStoredVersionContractByHash for package hash (null version = latest)
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(VAULT_HASH, 'hex')),
+        null, // null = use latest version
+        'deposit',
+        args
     )
 
-    // Payment
-    const payment = DeployUtil.standardPayment(2500000000) // 2.5 CSPR gas
+    // Payment includes the deposit amount + gas
+    const payment = DeployUtil.standardPayment(amountInMotes + BigInt(2_500_000_000))
 
-    // Create the deploy
-    const deploy = DeployUtil.makeDeploy(deployParams, session, payment)
-
-    return deploy
+    return DeployUtil.makeDeploy(deployParams, session, payment)
 }
 
 /**
@@ -49,7 +61,7 @@ export function createWithdrawDeploy(
     amountInCSPR: string
 ): DeployUtil.Deploy {
     const publicKey = CLPublicKey.fromHex(senderPublicKey)
-    const amountInMotes = Math.floor(parseFloat(amountInCSPR) * CSPR_TO_MOTES)
+    const amountInMotes = BigInt(Math.floor(parseFloat(amountInCSPR) * CSPR_TO_MOTES))
 
     const deployParams = new DeployUtil.DeployParams(
         publicKey,
@@ -58,15 +70,170 @@ export function createWithdrawDeploy(
         1800000
     )
 
-    // For demo, create a simple transfer
-    const session = DeployUtil.ExecutableDeployItem.newTransfer(
-        amountInMotes,
-        publicKey,
+    // Call vault.withdraw(amount)
+    const args = RuntimeArgs.fromMap({
+        amount: CLValueBuilder.u512(amountInMotes.toString()),
+    })
+
+    // Use newStoredVersionContractByHash for package hash (null version = latest)
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(VAULT_HASH, 'hex')),
         null,
-        Date.now()
+        'withdraw',
+        args
     )
 
-    const payment = DeployUtil.standardPayment(2500000000)
+    const payment = DeployUtil.standardPayment(2_500_000_000) // 2.5 CSPR gas
+
+    return DeployUtil.makeDeploy(deployParams, session, payment)
+}
+
+/**
+ * Create a deploy for creating an automation rule
+ */
+export function createRuleDeploy(
+    senderPublicKey: string,
+    templateName: string,
+    triggerType: number,
+    schedule: number,
+    actionType: number,
+    recipient: string,
+    amountInCSPR: string
+): DeployUtil.Deploy {
+    const publicKey = CLPublicKey.fromHex(senderPublicKey)
+    const amountInMotes = BigInt(Math.floor(parseFloat(amountInCSPR) * CSPR_TO_MOTES))
+
+    const deployParams = new DeployUtil.DeployParams(
+        publicKey,
+        NETWORK_NAME,
+        1,
+        1800000
+    )
+
+    // Parse recipient as a public key and convert to account hash byte array
+    let recipientBytes: Uint8Array
+    try {
+        const recipientKey = CLPublicKey.fromHex(recipient)
+        recipientBytes = recipientKey.toAccountHash()
+    } catch {
+        // If parsing fails, assume it's already an account hash
+        recipientBytes = Uint8Array.from(Buffer.from(recipient.replace('account-hash-', ''), 'hex'))
+    }
+
+    // Call engine.create_rule(template_name, trigger_type, schedule, action_type, recipient, amount)
+    const args = RuntimeArgs.fromMap({
+        template_name: CLValueBuilder.string(templateName),
+        trigger_type: CLValueBuilder.u8(triggerType),
+        schedule: CLValueBuilder.u8(schedule),
+        action_type: CLValueBuilder.u8(actionType),
+        recipient: CLValueBuilder.byteArray(recipientBytes),
+        amount: CLValueBuilder.u512(amountInMotes.toString()),
+    })
+
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(ENGINE_HASH, 'hex')),
+        null,
+        'create_rule',
+        args
+    )
+
+    const payment = DeployUtil.standardPayment(5_000_000_000) // 5 CSPR gas for rule creation
+
+    return DeployUtil.makeDeploy(deployParams, session, payment)
+}
+
+/**
+ * Create a deploy for pausing a rule
+ */
+export function createPauseRuleDeploy(
+    senderPublicKey: string,
+    ruleId: number
+): DeployUtil.Deploy {
+    const publicKey = CLPublicKey.fromHex(senderPublicKey)
+
+    const deployParams = new DeployUtil.DeployParams(
+        publicKey,
+        NETWORK_NAME,
+        1,
+        1800000
+    )
+
+    const args = RuntimeArgs.fromMap({
+        rule_id: CLValueBuilder.u64(ruleId),
+    })
+
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(ENGINE_HASH, 'hex')),
+        null,
+        'pause_rule',
+        args
+    )
+
+    const payment = DeployUtil.standardPayment(2_500_000_000)
+
+    return DeployUtil.makeDeploy(deployParams, session, payment)
+}
+
+/**
+ * Create a deploy for resuming a paused rule
+ */
+export function createResumeRuleDeploy(
+    senderPublicKey: string,
+    ruleId: number
+): DeployUtil.Deploy {
+    const publicKey = CLPublicKey.fromHex(senderPublicKey)
+
+    const deployParams = new DeployUtil.DeployParams(
+        publicKey,
+        NETWORK_NAME,
+        1,
+        1800000
+    )
+
+    const args = RuntimeArgs.fromMap({
+        rule_id: CLValueBuilder.u64(ruleId),
+    })
+
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(ENGINE_HASH, 'hex')),
+        null,
+        'resume_rule',
+        args
+    )
+
+    const payment = DeployUtil.standardPayment(2_500_000_000)
+
+    return DeployUtil.makeDeploy(deployParams, session, payment)
+}
+
+/**
+ * Create a deploy for deleting a rule
+ */
+export function createDeleteRuleDeploy(
+    senderPublicKey: string,
+    ruleId: number
+): DeployUtil.Deploy {
+    const publicKey = CLPublicKey.fromHex(senderPublicKey)
+
+    const deployParams = new DeployUtil.DeployParams(
+        publicKey,
+        NETWORK_NAME,
+        1,
+        1800000
+    )
+
+    const args = RuntimeArgs.fromMap({
+        rule_id: CLValueBuilder.u64(ruleId),
+    })
+
+    const session = DeployUtil.ExecutableDeployItem.newStoredVersionContractByHash(
+        Uint8Array.from(Buffer.from(ENGINE_HASH, 'hex')),
+        null,
+        'delete_rule',
+        args
+    )
+
+    const payment = DeployUtil.standardPayment(2_500_000_000)
 
     return DeployUtil.makeDeploy(deployParams, session, payment)
 }
@@ -94,24 +261,65 @@ export async function signAndSendDeploy(
         console.log('Signing deploy:', deployJson)
 
         // Sign the deploy
-        const signature = await provider.sign(
+        const signResult = await provider.sign(
             JSON.stringify(deployJson),
             senderPublicKey
         )
 
-        if (signature.cancelled) {
+        if (signResult.cancelled) {
             throw new Error('Transaction cancelled by user')
         }
 
-        console.log('Deploy signed:', signature)
+        console.log('Deploy signed:', signResult)
 
-        // In production, send the signed deploy to the network
-        // For demo, return the deploy hash
-        const deployHash = Buffer.from(deploy.hash).toString('hex')
+        // The wallet returns just the signature - we need to manually attach it
+        // signResult has: { cancelled: false, signatureHex: string, signature: Uint8Array }
+        const signatureHex = signResult.signatureHex
+
+        // Create the signed deploy by adding the approval
+        const publicKey = CLPublicKey.fromHex(senderPublicKey)
+
+        // Build the approval structure for the deploy JSON
+        const deployData = deployJson.deploy as Record<string, unknown>
+        const deployJsonWithApproval = {
+            ...deployData,
+            approvals: [
+                {
+                    signer: publicKey.toHex(),
+                    signature: signatureHex.startsWith('02') ? signatureHex : `02${signatureHex}`
+                }
+            ]
+        }
+
+        console.log('Submitting deploy to network...', deployJsonWithApproval)
+
+        // Submit the signed deploy to the network via RPC
+        const response = await fetch('/rpc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'account_put_deploy',
+                params: {
+                    deploy: deployJsonWithApproval
+                }
+            })
+        })
+
+        const result = await response.json()
+        console.log('Deploy submission result:', result)
+
+        if (result.error) {
+            console.error('Deploy submission error details:', JSON.stringify(result.error, null, 2))
+            throw new Error(result.error.data || result.error.message || 'Failed to submit deploy')
+        }
+
+        const deployHash = result.result?.deploy_hash || Buffer.from(deploy.hash).toString('hex')
 
         return { deployHash }
     } catch (error: any) {
-        console.error('Error signing deploy:', error)
+        console.error('Error signing/sending deploy:', error)
         throw error
     }
 }

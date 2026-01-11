@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import VaultCard from '../components/vault/VaultCard'
 import DepositModal from '../components/vault/DepositModal'
@@ -6,7 +6,16 @@ import WithdrawModal from '../components/vault/WithdrawModal'
 import RuleCard from '../components/automation/RuleCard'
 import Button from '../components/common/Button'
 import { useToast } from '../components/common/Toast'
-import { createDepositDeploy, createWithdrawDeploy, signAndSendDeploy } from '../lib/contractService'
+import {
+    createDepositDeploy,
+    createWithdrawDeploy,
+    createPauseRuleDeploy,
+    createResumeRuleDeploy,
+    createDeleteRuleDeploy,
+    signAndSendDeploy
+} from '../lib/contractService'
+import { queryVaultBalance, queryUserRules, updateLocalVaultBalance } from '../lib/casperRpc'
+import { RuleStatus } from '../lib/types'
 import './Dashboard.css'
 
 interface DashboardProps {
@@ -16,41 +25,62 @@ interface DashboardProps {
     } | null
 }
 
-// Mock data for demo
-const mockRules = [
-    {
-        id: 1,
-        template_name: 'Recurring Payment',
-        status: 0,
-        next_execution: Date.now() + 86400000,
-        amount: '100',
-        recipient: '0123...abcd',
-    },
-    {
-        id: 2,
-        template_name: 'Auto-Savings',
-        status: 1,
-        next_execution: 0,
-        amount: '50',
-        recipient: '9876...wxyz',
-    },
-]
+interface DisplayRule {
+    id: number
+    template_name: string
+    status: number
+    next_execution: number
+    amount: string
+    recipient: string
+}
 
 function Dashboard({ activeAccount }: DashboardProps) {
     const navigate = useNavigate()
     const { showToast } = useToast()
-    const [vaultBalance, setVaultBalance] = useState('100') // Demo balance
-    const [rules, setRules] = useState(mockRules)
+    const [vaultBalance, setVaultBalance] = useState<string | null>(null)
+    const [rules, setRules] = useState<DisplayRule[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [showDepositModal, setShowDepositModal] = useState(false)
     const [showWithdrawModal, setShowWithdrawModal] = useState(false)
     const [isDepositing, setIsDepositing] = useState(false)
     const [isWithdrawing, setIsWithdrawing] = useState(false)
 
+    // Fetch data from chain
+    const fetchData = useCallback(async () => {
+        if (!activeAccount?.public_key) return
+
+        setIsLoading(true)
+        try {
+            // Fetch vault balance
+            const balance = await queryVaultBalance(activeAccount.public_key)
+            setVaultBalance(balance)
+
+            // Fetch user rules
+            const userRules = await queryUserRules(activeAccount.public_key)
+            const displayRules: DisplayRule[] = userRules.map((rule: any) => ({
+                id: rule.id,
+                template_name: rule.template_name || 'Automation Rule',
+                status: rule.status ?? RuleStatus.Active,
+                next_execution: rule.next_execution || 0,
+                amount: rule.amount ? (BigInt(rule.amount) / BigInt(1_000_000_000)).toString() : '0',
+                recipient: rule.recipient ? `${rule.recipient.slice(0, 8)}...${rule.recipient.slice(-4)}` : 'N/A',
+            }))
+            setRules(displayRules)
+        } catch (error) {
+            console.error('Failed to fetch data:', error)
+            showToast('error', 'Failed to load data from chain')
+        } finally {
+            setIsLoading(false)
+        }
+    }, [activeAccount?.public_key, showToast])
+
     useEffect(() => {
         if (!activeAccount) {
             navigate('/')
+        } else {
+            fetchData()
         }
-    }, [activeAccount, navigate])
+    }, [activeAccount, navigate, fetchData])
 
     const handleDeposit = async (amount: string) => {
         if (!activeAccount?.public_key) {
@@ -63,9 +93,12 @@ function Dashboard({ activeAccount }: DashboardProps) {
             const result = await signAndSendDeploy(deploy, activeAccount.public_key)
 
             if (result?.deployHash) {
-                const newBalance = (parseFloat(vaultBalance) + parseFloat(amount)).toFixed(2)
+                showToast('success', `Deposit submitted! TX: ${result.deployHash.slice(0, 8)}...`, result.deployHash)
+                // Optimistic update - save to localStorage for persistence
+                const currentBalance = parseFloat(vaultBalance || '0')
+                const newBalance = (currentBalance + parseFloat(amount)).toFixed(2)
                 setVaultBalance(newBalance)
-                showToast('success', `Deposited ${amount} CSPR successfully!`, result.deployHash)
+                updateLocalVaultBalance(activeAccount.public_key, newBalance)
             }
         } catch (error: any) {
             if (error.message?.includes('cancelled')) {
@@ -90,9 +123,12 @@ function Dashboard({ activeAccount }: DashboardProps) {
             const result = await signAndSendDeploy(deploy, activeAccount.public_key)
 
             if (result?.deployHash) {
-                const newBalance = (parseFloat(vaultBalance) - parseFloat(amount)).toFixed(2)
+                showToast('success', `Withdrawal submitted! TX: ${result.deployHash.slice(0, 8)}...`, result.deployHash)
+                // Optimistic update - save to localStorage for persistence
+                const currentBalance = parseFloat(vaultBalance || '0')
+                const newBalance = Math.max(0, currentBalance - parseFloat(amount)).toFixed(2)
                 setVaultBalance(newBalance)
-                showToast('success', `Withdrew ${amount} CSPR successfully!`, result.deployHash)
+                updateLocalVaultBalance(activeAccount.public_key, newBalance)
             }
         } catch (error: any) {
             if (error.message?.includes('cancelled')) {
@@ -107,17 +143,52 @@ function Dashboard({ activeAccount }: DashboardProps) {
     }
 
     const handlePauseRule = async (ruleId: number) => {
+        if (!activeAccount?.public_key) return
+
         const rule = rules.find(r => r.id === ruleId)
-        const newStatus = rule?.status === 0 ? 1 : 0
-        setRules(rules.map(r =>
-            r.id === ruleId ? { ...r, status: newStatus } : r
-        ))
-        showToast('success', `Rule ${newStatus === 0 ? 'resumed' : 'paused'} successfully`)
+        if (!rule) return
+
+        const isPaused = rule.status === RuleStatus.Paused
+
+        try {
+            const deploy = isPaused
+                ? createResumeRuleDeploy(activeAccount.public_key, ruleId)
+                : createPauseRuleDeploy(activeAccount.public_key, ruleId)
+
+            const result = await signAndSendDeploy(deploy, activeAccount.public_key)
+
+            if (result?.deployHash) {
+                // Optimistic update
+                const newStatus = isPaused ? RuleStatus.Active : RuleStatus.Paused
+                setRules(rules.map(r =>
+                    r.id === ruleId ? { ...r, status: newStatus } : r
+                ))
+                showToast('success', `Rule ${isPaused ? 'resumed' : 'paused'}! TX: ${result.deployHash.slice(0, 8)}...`)
+            }
+        } catch (error: any) {
+            if (!error.message?.includes('cancelled')) {
+                showToast('error', error.message || 'Failed to update rule')
+            }
+        }
     }
 
     const handleDeleteRule = async (ruleId: number) => {
-        setRules(rules.filter(r => r.id !== ruleId))
-        showToast('success', 'Rule deleted successfully')
+        if (!activeAccount?.public_key) return
+
+        try {
+            const deploy = createDeleteRuleDeploy(activeAccount.public_key, ruleId)
+            const result = await signAndSendDeploy(deploy, activeAccount.public_key)
+
+            if (result?.deployHash) {
+                // Optimistic update
+                setRules(rules.filter(r => r.id !== ruleId))
+                showToast('success', `Rule deleted! TX: ${result.deployHash.slice(0, 8)}...`)
+            }
+        } catch (error: any) {
+            if (!error.message?.includes('cancelled')) {
+                showToast('error', error.message || 'Failed to delete rule')
+            }
+        }
     }
 
     if (!activeAccount) {
@@ -132,9 +203,10 @@ function Dashboard({ activeAccount }: DashboardProps) {
             <section className="section">
                 <div className="section-header">
                     <h2 className="section-title">Your Vault</h2>
+                    {isLoading && <span className="loading-indicator">Loading...</span>}
                 </div>
                 <VaultCard
-                    balance={vaultBalance}
+                    balance={vaultBalance ?? '0'}
                     lockedAmount="0"
                     onDeposit={() => setShowDepositModal(true)}
                     onWithdraw={() => setShowWithdrawModal(true)}
@@ -149,7 +221,11 @@ function Dashboard({ activeAccount }: DashboardProps) {
                     </Button>
                 </div>
 
-                {rules.length > 0 ? (
+                {isLoading ? (
+                    <div className="loading-state">
+                        <p>Loading rules from chain...</p>
+                    </div>
+                ) : rules.length > 0 ? (
                     <div className="rules-grid">
                         {rules.map(rule => (
                             <RuleCard
@@ -186,7 +262,7 @@ function Dashboard({ activeAccount }: DashboardProps) {
                 onClose={() => setShowWithdrawModal(false)}
                 onWithdraw={handleWithdraw}
                 isLoading={isWithdrawing}
-                vaultBalance={vaultBalance}
+                vaultBalance={vaultBalance ?? '0'}
             />
         </div>
     )

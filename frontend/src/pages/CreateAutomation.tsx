@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Button from '../components/common/Button'
+import { useToast } from '../components/common/Toast'
 import { TEMPLATES, SCHEDULES } from '../lib/constants'
+import { createRuleDeploy, signAndSendDeploy } from '../lib/contractService'
 import './CreateAutomation.css'
 
 interface CreateAutomationProps {
@@ -13,6 +15,7 @@ interface CreateAutomationProps {
 
 function CreateAutomation({ activeAccount }: CreateAutomationProps) {
   const navigate = useNavigate()
+  const { showToast } = useToast()
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     recipient: '',
@@ -27,20 +30,84 @@ function CreateAutomation({ activeAccount }: CreateAutomationProps) {
     }
   }, [activeAccount, navigate])
 
+  const validateForm = (): string | null => {
+    if (!selectedTemplate) {
+      return 'Please select a template'
+    }
+    if (!formData.recipient) {
+      return 'Please enter a recipient address'
+    }
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      return 'Please enter a valid amount'
+    }
+    // Basic validation for Casper public key format
+    if (formData.recipient.length < 64) {
+      return 'Recipient must be a valid Casper public key (starts with 01 or 02)'
+    }
+    return null
+  }
+
   const handleSubmit = async () => {
-    if (!selectedTemplate || !formData.recipient || !formData.amount) {
-      alert('Please fill in all fields')
+    const validationError = validateForm()
+    if (validationError) {
+      showToast('error', validationError)
+      return
+    }
+
+    if (!activeAccount?.public_key) {
+      showToast('error', 'Wallet not connected')
+      return
+    }
+
+    const template = TEMPLATES.find(t => t.id === selectedTemplate)
+    if (!template) {
+      showToast('error', 'Invalid template')
       return
     }
 
     setLoading(true)
-    console.log('Creating rule:', { template: selectedTemplate, ...formData })
+    try {
+      const deploy = createRuleDeploy(
+        activeAccount.public_key,
+        template.name,
+        template.triggerType,
+        formData.schedule,
+        template.actionType,
+        formData.recipient,
+        formData.amount
+      )
 
-    setTimeout(() => {
+      const result = await signAndSendDeploy(deploy, activeAccount.public_key)
+
+      if (result?.deployHash) {
+        showToast('success', `Rule created! TX: ${result.deployHash.slice(0, 8)}...`, result.deployHash)
+
+        // Store in local history for MVP
+        const historyKey = `history_${activeAccount.public_key}`
+        const existing = JSON.parse(localStorage.getItem(historyKey) || '[]')
+        existing.unshift({
+          id: Date.now().toString(),
+          ruleId: 0, // Will be set by contract
+          ruleName: template.name,
+          timestamp: Date.now(),
+          amount: formData.amount,
+          recipient: formData.recipient.slice(0, 8) + '...' + formData.recipient.slice(-4),
+          success: true,
+          txHash: result.deployHash,
+        })
+        localStorage.setItem(historyKey, JSON.stringify(existing.slice(0, 50)))
+
+        navigate('/dashboard')
+      }
+    } catch (error: any) {
+      if (error.message?.includes('cancelled')) {
+        showToast('warning', 'Transaction cancelled by user')
+      } else {
+        showToast('error', error.message || 'Failed to create rule')
+      }
+    } finally {
       setLoading(false)
-      alert('Rule created successfully!')
-      navigate('/dashboard')
-    }, 1500)
+    }
   }
 
   if (!activeAccount) {
@@ -78,10 +145,13 @@ function CreateAutomation({ activeAccount }: CreateAutomationProps) {
               <input
                 type="text"
                 className="input"
-                placeholder="Enter recipient public key"
+                placeholder="Enter recipient public key (e.g. 01abc...)"
                 value={formData.recipient}
                 onChange={(e) => setFormData({ ...formData, recipient: e.target.value })}
               />
+              <small className="input-hint">
+                Full Casper public key starting with 01 (Ed25519) or 02 (Secp256k1)
+              </small>
             </div>
 
             <div className="form-group">
@@ -91,6 +161,7 @@ function CreateAutomation({ activeAccount }: CreateAutomationProps) {
                 className="input"
                 placeholder="Enter amount"
                 min="1"
+                step="0.01"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               />
@@ -109,6 +180,10 @@ function CreateAutomation({ activeAccount }: CreateAutomationProps) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-preview">
+              <strong>Preview:</strong> Send {formData.amount || '?'} CSPR to {formData.recipient ? `${formData.recipient.slice(0, 8)}...` : '?'} every {SCHEDULES.find(s => s.value === formData.schedule)?.label.toLowerCase()}
             </div>
 
             <div className="form-actions">

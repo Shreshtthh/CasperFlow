@@ -1,14 +1,17 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { getAccountBalance } from '../lib/casperRpc'
 
 interface UseCasperWalletReturn {
     isAvailable: boolean
     isConnected: boolean
     isConnecting: boolean
     publicKey: string | null
+    balance: string | null
     error: string | null
     connect: () => Promise<boolean>
     disconnect: () => Promise<void>
     getActivePublicKey: () => Promise<string | null>
+    refreshBalance: () => Promise<void>
 }
 
 export function useCasperWallet(): UseCasperWalletReturn {
@@ -16,6 +19,7 @@ export function useCasperWallet(): UseCasperWalletReturn {
     const [isConnected, setIsConnected] = useState(false)
     const [isConnecting, setIsConnecting] = useState(false)
     const [publicKey, setPublicKey] = useState<string | null>(null)
+    const [balance, setBalance] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     const providerRef = useRef<any>(null)
@@ -182,6 +186,7 @@ export function useCasperWallet(): UseCasperWalletReturn {
                 await provider.disconnectFromSite()
             }
             setPublicKey(null)
+            setBalance(null)
             setIsConnected(false)
         } catch (err) {
             console.error('Disconnect error:', err)
@@ -201,14 +206,34 @@ export function useCasperWallet(): UseCasperWalletReturn {
         }
     }
 
+    const refreshBalance = async (): Promise<void> => {
+        if (publicKey) {
+            try {
+                const bal = await getAccountBalance(publicKey)
+                setBalance(bal)
+            } catch (err) {
+                console.error('Error fetching balance:', err)
+            }
+        }
+    }
+
+    // Fetch balance when public key changes
+    useEffect(() => {
+        if (publicKey) {
+            refreshBalance()
+        }
+    }, [publicKey])
+
     return {
         isAvailable,
         isConnected,
         isConnecting,
         publicKey,
+        balance,
         error,
         connect,
         disconnect,
         getActivePublicKey,
+        refreshBalance,
     }
 }

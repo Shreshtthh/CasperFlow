@@ -9,44 +9,40 @@ interface HistoryProps {
   } | null
 }
 
-const mockHistory = [
-  {
-    id: 1,
-    ruleName: 'Recurring Payment',
-    timestamp: Date.now() - 3600000,
-    amount: '100',
-    recipient: '0123...abcd',
-    success: true,
-    txHash: '08c77fecb901a8aacc9824891abc741d7c6e23e5c7b583c1374c175e063ce346',
-  },
-  {
-    id: 2,
-    ruleName: 'Auto-Savings',
-    timestamp: Date.now() - 86400000,
-    amount: '50',
-    recipient: '9876...wxyz',
-    success: true,
-    txHash: 'c7a06dbd1603ae611875b979aff078ca8d0fc849f5e3e9382585d5fd21fa66f2',
-  },
-  {
-    id: 3,
-    ruleName: 'Recurring Payment',
-    timestamp: Date.now() - 172800000,
-    amount: '100',
-    recipient: '0123...abcd',
-    success: false,
-    txHash: '03f653a77ae52d6891fde2f98d721708319f69705366119ca4f0636b4e20718c',
-  },
-]
+interface HistoryItem {
+  id: string
+  ruleName: string
+  timestamp: number
+  amount: string
+  recipient: string
+  success: boolean
+  txHash: string
+  error?: string
+}
 
 function History({ activeAccount }: HistoryProps) {
   const navigate = useNavigate()
-  const [history] = useState(mockHistory)
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     if (!activeAccount) {
       navigate('/')
+      return
     }
+
+    // Load history from localStorage
+    const historyKey = `history_${activeAccount.public_key}`
+    const stored = localStorage.getItem(historyKey)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        setHistory(parsed)
+      } catch (e) {
+        console.error('Failed to parse history:', e)
+      }
+    }
+    setIsLoading(false)
   }, [activeAccount, navigate])
 
   const formatDate = (timestamp: number) => {
@@ -59,16 +55,37 @@ function History({ activeAccount }: HistoryProps) {
     })
   }
 
+  const clearHistory = () => {
+    if (activeAccount?.public_key) {
+      const historyKey = `history_${activeAccount.public_key}`
+      localStorage.removeItem(historyKey)
+      setHistory([])
+    }
+  }
+
   if (!activeAccount) {
     return null
   }
 
   return (
     <div className="history-container">
-      <h1 className="page-title">Execution History</h1>
-      <p className="page-subtitle">Track all your automation rule executions</p>
+      <div className="history-header">
+        <div>
+          <h1 className="page-title">Execution History</h1>
+          <p className="page-subtitle">Track all your automation rule executions</p>
+        </div>
+        {history.length > 0 && (
+          <button className="clear-btn" onClick={clearHistory}>
+            Clear History
+          </button>
+        )}
+      </div>
 
-      {history.length > 0 ? (
+      {isLoading ? (
+        <div className="loading-state">
+          <p>Loading history...</p>
+        </div>
+      ) : history.length > 0 ? (
         <div className="timeline">
           {history.map((item) => (
             <div className="history-item" key={item.id}>
@@ -95,7 +112,7 @@ function History({ activeAccount }: HistoryProps) {
                 <div className="detail-item">
                   <span className="detail-label">Transaction</span>
                   <a
-                    href={`https://testnet.cspr.live/transaction/${item.txHash}`}
+                    href={`https://testnet.cspr.live/deploy/${item.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="tx-link"
@@ -103,6 +120,12 @@ function History({ activeAccount }: HistoryProps) {
                     {item.txHash.slice(0, 8)}...{item.txHash.slice(-8)}
                   </a>
                 </div>
+                {item.error && (
+                  <div className="detail-item error">
+                    <span className="detail-label">Error</span>
+                    <span className="detail-value">{item.error}</span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -111,9 +134,19 @@ function History({ activeAccount }: HistoryProps) {
         <div className="empty-state">
           <div className="empty-icon">📜</div>
           <p>No execution history yet.</p>
-          <p>Your automation executions will appear here.</p>
+          <p>Create and execute automation rules to see their history here.</p>
         </div>
       )}
+
+      <div className="history-note">
+        <p>
+          <strong>Note:</strong> History is stored locally in your browser.
+          Full transaction history can be viewed on{' '}
+          <a href="https://testnet.cspr.live" target="_blank" rel="noopener noreferrer">
+            CSPR.live
+          </a>
+        </p>
+      </div>
     </div>
   )
 }
