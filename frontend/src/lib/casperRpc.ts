@@ -6,7 +6,6 @@
  */
 
 import { CLPublicKey } from 'casper-js-sdk'
-import { CONTRACTS } from './constants'
 
 // Use /rpc proxy path in development to avoid CORS issues
 // In production, this should be a CORS-enabled RPC endpoint or backend proxy
