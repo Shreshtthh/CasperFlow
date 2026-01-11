@@ -7,9 +7,13 @@
 
 import { CLPublicKey } from 'casper-js-sdk'
 
-// Use /rpc proxy path in development to avoid CORS issues
-// In production, this should be a CORS-enabled RPC endpoint or backend proxy
-const RPC_URL = '/rpc'
+// Use /rpc proxy path in development, cspr.cloud in production
+const RPC_URL = import.meta.env.DEV
+    ? '/rpc'
+    : 'https://node.testnet.cspr.cloud/rpc'
+
+// CSPR.cloud API key for production
+const CSPR_CLOUD_API_KEY = import.meta.env.VITE_CSPR_CLOUD_API_KEY || ''
 
 /**
  * Make a JSON-RPC request to the Casper node
@@ -24,9 +28,18 @@ async function rpcRequest(method: string, params: Record<string, unknown>): Prom
 
     console.log('RPC Request:', method, params)
 
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    }
+
+    // Add authorization header for cspr.cloud in production
+    if (!import.meta.env.DEV && CSPR_CLOUD_API_KEY) {
+        headers['Authorization'] = CSPR_CLOUD_API_KEY
+    }
+
     const response = await fetch(RPC_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(requestBody),
     })
 
