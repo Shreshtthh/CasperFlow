@@ -3,6 +3,10 @@
         {
             "source": "/rpc",
             "destination": "/api/rpc"
+        },
+        {
+            "source": "/((?!api|assets|favicon|.*\\.).*)",
+            "destination": "/index.html"
         }
     ]
 }
