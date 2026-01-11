@@ -7,36 +7,10 @@
 
 import { CLPublicKey } from 'casper-js-sdk'
 import { CONTRACTS } from './constants'
-import { blake2b } from '@noble/hashes/blake2b'
-import { bytesToHex } from '@noble/hashes/utils'
 
 // Use /rpc proxy path in development to avoid CORS issues
 // In production, this should be a CORS-enabled RPC endpoint or backend proxy
 const RPC_URL = '/rpc'
-
-/**
- * Compute an Odra dictionary key following the storage layout algorithm:
- * 1. Convert index to big-endian 4-byte array
- * 2. Concatenate with mapping key data
- * 3. Hash with blake2b-256
- * 4. Return hex representation
- */
-function computeOdraKey(fieldIndex: number, mappingKeyBytes: Uint8Array): string {
-    // Convert index to big-endian 4-byte array
-    const indexBytes = new Uint8Array(4)
-    const view = new DataView(indexBytes.buffer)
-    view.setUint32(0, fieldIndex, false) // false = big-endian
-
-    // Concatenate index with mapping data
-    const combined = new Uint8Array(indexBytes.length + mappingKeyBytes.length)
-    combined.set(indexBytes)
-    combined.set(mappingKeyBytes, indexBytes.length)
-
-    // Hash with blake2b-256
-    const hash = blake2b(combined, { dkLen: 32 })
-
-    return bytesToHex(hash)
-}
 
 /**
  * Make a JSON-RPC request to the Casper node
@@ -207,72 +181,19 @@ export async function getAccountBalance(publicKeyHex: string): Promise<string> {
 }
 
 /**
- * Query vault balance for a user directly from the contract
+ * Query vault balance for a user
  * 
- * Uses Odra's storage layout: dictionary "state" with blake2b-hashed keys
- * For AutomationVault.balances, the field index is 1
+ * For MVP, we use localStorage for tracking vault balances.
+ * On-chain dictionary queries require Odra-specific serialization.
  */
 export async function queryVaultBalance(ownerPublicKey: string): Promise<string> {
-    const publicKey = CLPublicKey.fromHex(ownerPublicKey)
-
-    // Get the account hash as bytes for the mapping key
-    // toAccountHashStr returns "account-hash-xxx..." - we need the hex bytes
-    const accountHashHex = publicKey.toAccountHashStr().replace('account-hash-', '')
-    const accountHashBytes = hexToBytes(accountHashHex)
-
-    // balances is the first field (index 1) in AutomationVault struct
-    const BALANCES_INDEX = 1
-    const dictKey = computeOdraKey(BALANCES_INDEX, accountHashBytes)
-
-    console.log('Querying vault balance with Odra key:', dictKey.slice(0, 16) + '...')
-
-    try {
-        const stateRootHash = await getStateRootHash()
-        const cleanHash = CONTRACTS.VAULT.replace('hash-', '')
-
-        const result = await rpcRequest('state_get_dictionary_item', {
-            state_root_hash: stateRootHash,
-            dictionary_identifier: {
-                ContractNamedKey: {
-                    key: `hash-${cleanHash}`,
-                    dictionary_name: 'state',  // Odra uses 'state' as the dictionary name
-                    dictionary_item_key: dictKey,
-                },
-            },
-        })
-
-        const balance = result?.stored_value?.CLValue?.parsed
-
-        if (balance !== null && balance !== undefined) {
-            console.log('Found vault balance on-chain:', balance)
-            // Balance stored in motes (U512), convert to CSPR
-            const balanceInCSPR = (BigInt(balance) / BigInt(1_000_000_000)).toString()
-            return balanceInCSPR
-        }
-    } catch {
-        // Dictionary query failed - this is expected for MVP
-        // Fall through to localStorage
-    }
-
     // Use localStorage for optimistic balance tracking (MVP approach)
     const localBalanceKey = `vault_balance_${ownerPublicKey}`
     const localBalance = localStorage.getItem(localBalanceKey)
     if (localBalance) {
         return localBalance
     }
-
     return '0'
-}
-
-/**
- * Helper: Convert hex string to Uint8Array
- */
-function hexToBytes(hex: string): Uint8Array {
-    const bytes = new Uint8Array(hex.length / 2)
-    for (let i = 0; i < hex.length; i += 2) {
-        bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16)
-    }
-    return bytes
 }
 
 /**
@@ -293,57 +214,32 @@ export function getLocalVaultBalance(publicKey: string): string {
 
 /**
  * Query user's rule IDs from the automation engine
+ * 
+ * For MVP, returns empty array - rules are tracked in localStorage
  */
-export async function queryUserRuleIds(ownerPublicKey: string): Promise<number[]> {
-    try {
-        const publicKey = CLPublicKey.fromHex(ownerPublicKey)
-        const accountHash = publicKey.toAccountHashStr().replace('account-hash-', '')
-
-        const ruleIds = await queryContractDict(
-            CONTRACTS.ENGINE,
-            'user_rules',
-            accountHash
-        )
-
-        return ruleIds || []
-    } catch (error) {
-        console.error('Failed to query user rule IDs:', error)
-        return []
-    }
+export async function queryUserRuleIds(_ownerPublicKey: string): Promise<number[]> {
+    // MVP: Rules are tracked locally, on-chain query not functional due to Odra naming
+    return []
 }
 
 /**
  * Query a single rule by ID
+ * 
+ * For MVP, returns null - rules are tracked in localStorage
  */
-export async function queryRule(ruleId: number): Promise<any | null> {
-    try {
-        const rule = await queryContractDict(
-            CONTRACTS.ENGINE,
-            'rules',
-            ruleId.toString()
-        )
-
-        return rule
-    } catch (error) {
-        console.error(`Failed to query rule ${ruleId}:`, error)
-        return null
-    }
+export async function queryRule(_ruleId: number): Promise<any | null> {
+    // MVP: Rules are tracked locally, on-chain query not functional due to Odra naming
+    return null
 }
 
 /**
- * Query all rules for a user (convenience function)
+ * Query all rules for a user
+ * 
+ * For MVP, returns empty array - rules are tracked in localStorage
  */
-export async function queryUserRules(ownerPublicKey: string): Promise<any[]> {
-    const ruleIds = await queryUserRuleIds(ownerPublicKey)
-
-    const rules = await Promise.all(
-        ruleIds.map(async (id) => {
-            const rule = await queryRule(id)
-            return rule ? { ...rule, id } : null
-        })
-    )
-
-    return rules.filter(Boolean)
+export async function queryUserRules(_ownerPublicKey: string): Promise<any[]> {
+    // MVP: Rules are tracked locally, on-chain query not functional due to Odra naming
+    return []
 }
 
 /**

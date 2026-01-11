@@ -82,12 +82,33 @@ function CreateAutomation({ activeAccount }: CreateAutomationProps) {
       if (result?.deployHash) {
         showToast('success', `Rule created! TX: ${result.deployHash.slice(0, 8)}...`, result.deployHash)
 
+        // Store rule in localStorage for Dashboard display (MVP)
+        const rulesKey = `rules_${activeAccount.public_key}`
+        const existingRules = JSON.parse(localStorage.getItem(rulesKey) || '[]')
+        const newRule = {
+          id: Date.now(),
+          template_name: template.name,
+          owner: activeAccount.public_key,
+          status: 0, // Active
+          trigger_type: template.triggerType,
+          schedule: formData.schedule,
+          action_type: template.actionType,
+          recipient: formData.recipient,
+          amount: formData.amount,
+          next_execution: Date.now() + 86400000, // Next day
+          last_executed: null,
+          created_at: Date.now(),
+          txHash: result.deployHash,
+        }
+        existingRules.unshift(newRule)
+        localStorage.setItem(rulesKey, JSON.stringify(existingRules))
+
         // Store in local history for MVP
         const historyKey = `history_${activeAccount.public_key}`
         const existing = JSON.parse(localStorage.getItem(historyKey) || '[]')
         existing.unshift({
           id: Date.now().toString(),
-          ruleId: 0, // Will be set by contract
+          ruleId: newRule.id,
           ruleName: template.name,
           timestamp: Date.now(),
           amount: formData.amount,

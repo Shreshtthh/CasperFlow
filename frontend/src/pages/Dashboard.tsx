@@ -55,15 +55,25 @@ function Dashboard({ activeAccount }: DashboardProps) {
             const balance = await queryVaultBalance(activeAccount.public_key)
             setVaultBalance(balance)
 
-            // Fetch user rules
-            const userRules = await queryUserRules(activeAccount.public_key)
+            // Fetch user rules - try on-chain first, fallback to localStorage
+            let userRules = await queryUserRules(activeAccount.public_key)
+
+            // If on-chain query returns empty, use localStorage (MVP)
+            if (!userRules || userRules.length === 0) {
+                const rulesKey = `rules_${activeAccount.public_key}`
+                const localRules = JSON.parse(localStorage.getItem(rulesKey) || '[]')
+                userRules = localRules
+            }
+
             const displayRules: DisplayRule[] = userRules.map((rule: any) => ({
                 id: rule.id,
                 template_name: rule.template_name || 'Automation Rule',
                 status: rule.status ?? RuleStatus.Active,
                 next_execution: rule.next_execution || 0,
-                amount: rule.amount ? (BigInt(rule.amount) / BigInt(1_000_000_000)).toString() : '0',
-                recipient: rule.recipient ? `${rule.recipient.slice(0, 8)}...${rule.recipient.slice(-4)}` : 'N/A',
+                amount: typeof rule.amount === 'string' ? rule.amount :
+                    rule.amount ? (BigInt(rule.amount) / BigInt(1_000_000_000)).toString() : '0',
+                recipient: rule.recipient ?
+                    (rule.recipient.includes('...') ? rule.recipient : `${rule.recipient.slice(0, 8)}...${rule.recipient.slice(-4)}`) : 'N/A',
             }))
             setRules(displayRules)
         } catch (error) {
@@ -163,6 +173,15 @@ function Dashboard({ activeAccount }: DashboardProps) {
                 setRules(rules.map(r =>
                     r.id === ruleId ? { ...r, status: newStatus } : r
                 ))
+
+                // Update localStorage
+                const rulesKey = `rules_${activeAccount.public_key}`
+                const localRules = JSON.parse(localStorage.getItem(rulesKey) || '[]')
+                const updatedLocalRules = localRules.map((r: any) =>
+                    r.id === ruleId ? { ...r, status: newStatus } : r
+                )
+                localStorage.setItem(rulesKey, JSON.stringify(updatedLocalRules))
+
                 showToast('success', `Rule ${isPaused ? 'resumed' : 'paused'}! TX: ${result.deployHash.slice(0, 8)}...`)
             }
         } catch (error: any) {
@@ -182,6 +201,13 @@ function Dashboard({ activeAccount }: DashboardProps) {
             if (result?.deployHash) {
                 // Optimistic update
                 setRules(rules.filter(r => r.id !== ruleId))
+
+                // Update localStorage
+                const rulesKey = `rules_${activeAccount.public_key}`
+                const localRules = JSON.parse(localStorage.getItem(rulesKey) || '[]')
+                const updatedLocalRules = localRules.filter((r: any) => r.id !== ruleId)
+                localStorage.setItem(rulesKey, JSON.stringify(updatedLocalRules))
+
                 showToast('success', `Rule deleted! TX: ${result.deployHash.slice(0, 8)}...`)
             }
         } catch (error: any) {
