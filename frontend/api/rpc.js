@@ -19,7 +19,7 @@ export default async function handler(request) {
 
         // Forward request to Casper testnet RPC
         const rpcUrl = 'https://node.testnet.cspr.cloud/rpc'
-        const apiKey = process.env.VITE_CSPR_CLOUD_API_KEY || ''
+        const apiKey = process.env.CSPR_CLOUD_API_KEY || ''
 
         const headers = {
             'Content-Type': 'application/json',
