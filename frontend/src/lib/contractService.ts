@@ -279,6 +279,16 @@ export async function signAndSendDeploy(
         // Create the signed deploy by adding the approval
         const publicKey = CLPublicKey.fromHex(senderPublicKey)
 
+        // Determine signature prefix based on key algorithm
+        // Ed25519 keys (start with 01) use 01 prefix, Secp256k1 keys (start with 02) use 02 prefix
+        const keyAlgorithmPrefix = senderPublicKey.slice(0, 2)
+        const signaturePrefix = keyAlgorithmPrefix // '01' for Ed25519, '02' for Secp256k1
+
+        // Build the full signature with algorithm prefix if not already present
+        const fullSignature = signatureHex.startsWith('01') || signatureHex.startsWith('02')
+            ? signatureHex
+            : `${signaturePrefix}${signatureHex}`
+
         // Build the approval structure for the deploy JSON
         const deployData = deployJson.deploy as Record<string, unknown>
         const deployJsonWithApproval = {
@@ -286,7 +296,7 @@ export async function signAndSendDeploy(
             approvals: [
                 {
                     signer: publicKey.toHex(),
-                    signature: signatureHex.startsWith('02') ? signatureHex : `02${signatureHex}`
+                    signature: fullSignature
                 }
             ]
         }
